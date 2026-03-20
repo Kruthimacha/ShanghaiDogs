@@ -6,10 +6,7 @@
 # Genome Med 17, 137 (2025). https://doi.org/10.1186/s13073-025-01566-x
 
 skani dist \
-    --ql /work/microbiome/users/kruthi/MAGs_Onehealth/dog_mags_list.txt \
+    --ql /work/microbiome/users/kruthi/MAGs_Onehealth/SHD_Species_Rep_MAGs_list.txt \
     -r /work/microbiome/users/kruthi/MAGs_Onehealth/GMR_REP_6664MAGs/GMR_REP/*.fasta \
-    --min-af 50 \
-    -t 40 \
-    -o /work/microbiome/users/kruthi/MAGs_Onehealth/dog_vs_human_ani.tsv
-
-echo "Done,results saved to dog_vs_human_ani.tsv"
+    --min-af 50 -t 40 \
+    -o /work/microbiome/users/kruthi/MAGs_Onehealth/SHD_Species_Rep_vs_Human_ani.tsv
