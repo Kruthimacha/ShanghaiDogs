@@ -26,6 +26,8 @@ cohort_dirs = {
     'Yarlagadda_2022_global_dog': '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Yarlagadda_2022_global_dog',
     'Allaway_2020_dogs':          '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Allaway_2020_dogs',
     'Liu_2021_Canidae':           '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Liu_2021_Canidae',
+    'Xu_2019_dogs':               '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Xu_2019_dogs',
+    'Worsley-Tonks_2020_dog':     '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Worsley-Tonks_2020_dog',
 }
 
 print(f"\n{'Cohort':<30} {'Total':>8} {'HQ':>8} {'MQ':>8}")
