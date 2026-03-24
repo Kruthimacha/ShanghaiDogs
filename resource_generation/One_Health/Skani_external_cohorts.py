@@ -2,24 +2,22 @@ import pandas as pd
 import glob
 import os
 
-# Create output 
+# Create output directory
 output_dir = '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Quality_MAGs'
 os.makedirs(output_dir, exist_ok=True)
 
 # Load SPIRE metadata
 meta = pd.read_csv('/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/spire_v1_genome_metadata.tsv',
                    sep='\t', low_memory=False)
-
 print(f"Total SPIRE genomes: {len(meta)}")
 
-# quality filters
+# Quality filters
 hq = meta[(meta['completeness'] > 90) & (meta['contamination'] < 5)]
 mq = meta[(meta['completeness'] >= 50) & (meta['completeness'] <= 90) & (meta['contamination'] < 10)]
-
 print(f"HQ MAGs in SPIRE: {len(hq)}")
 print(f"MQ MAGs in SPIRE: {len(mq)}")
 
-# directories
+# Cohort directories
 cohort_dirs = {
     'Coelho_2018_dog':            '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Coelho_2018_dog/Coelho_2018_dog',
     'Wang_2019_dogs':             '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Wang_2019_dogs',
@@ -61,41 +59,43 @@ print(f"\nAll list files saved to: {output_dir}")
 #####
 
 import pandas as pd
-import glob
+import os
 
-total_shanghai = len(glob.glob('/work/microbiome/shanghai_dogs/data/ShanghaiDogsMAGs/*.fna.gz'))
+SKANI_DIR = '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Quality_MAGs/Skani'
+QUAL_DIR  = '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Quality_MAGs'
 
-cohorts = {
-    'GMR_Human_2025':        ('/work/microbiome/users/kruthi/MAGs_Onehealth/dog_vs_human_ani.tsv',
-                              '/work/microbiome/users/kruthi/MAGs_Onehealth/GMR_REP_6664MAGs/GMR_REP/*.fasta'),
-    'Coelho_2018_dog':       ('/work/microbiome/users/kruthi/MAGs_Onehealth/shanghai_vs_Coelho_2018_ani.tsv',
-                              '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Coelho_2018_dog/Coelho_2018_dog/*.fa.gz'),
-    'Wang_2019_dog':         ('/work/microbiome/users/kruthi/MAGs_Onehealth/shanghai_vs_Wang_2019_ani.tsv',
-                              '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Wang_2019_dogs/*.fa.gz'),
-    'Yarlagadda_2022_dog':   ('/work/microbiome/users/kruthi/MAGs_Onehealth/shanghai_vs_Yarlagadda_2022_ani.tsv',
-                              '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Yarlagadda_2022_global_dog/*.fa.gz'),
-    'Xu_2019_dog':           ('/work/microbiome/users/kruthi/MAGs_Onehealth/shanghai_vs_Xu_2019_ani.tsv',
-                              '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Xu_2019_dogs/*.fa.gz'),
-    'Allaway_2020_dog':      ('/work/microbiome/users/kruthi/MAGs_Onehealth/shanghai_vs_Allaway_2020_ani.tsv',
-                              '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Allaway_2020_dogs/*.fa.gz'),
-    'Liu_2021_dog':          ('/work/microbiome/users/kruthi/MAGs_Onehealth/shanghai_vs_Liu_2021_ani.tsv',
-                              '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Liu_2021_Canidae/*.fa.gz'),
-    'WorsleyTonks_2020_dog': ('/work/microbiome/users/kruthi/MAGs_Onehealth/shanghai_vs_WorsleyTonks_2020_ani.tsv',
-                              '/work/microbiome/users/kruthi/MAGs_Onehealth/external_dog_cohorts/Worsley-Tonks_2020_dog/*.fa.gz'),
-}
+cohorts = [
+    'Coelho_2018_dog',
+    'Wang_2019_dogs',
+    'Yarlagadda_2022_global_dog',
+    'Allaway_2020_dogs',
+    'Liu_2021_Canidae',
+    'Xu_2019_dogs',
+    'Worsley-Tonks_2020_dog',
+]
 
-print(f"Total Shanghai dog MAGs: {total_shanghai}\n")
-print(f"{'Cohort':<25} {'Type':<8} {'Ref MAGs':>10} {'>=95% ANI':>10} {'Unique Shanghai':>16} {'Percentage':>12} {'Mean ANI':>10}")
-print("-" * 95)
+print("Quality thresholds:")
+print("  HQ = High Quality  (completeness >90%, contamination <5%)")
+print("  MQ = Medium Quality (completeness ≥50%–<90%, contamination <10%)")
+print()
 
-for name, (path, mag_path) in cohorts.items():
-    df = pd.read_csv(path, sep='\t')
-    shared = df[df['ANI'] >= 95]
-    unique_shanghai = shared['Query_file'].nunique()
-    mean_ani = shared['ANI'].mean()
-    ref_mags = len(glob.glob(mag_path))
-    cohort_type = 'Human' if 'Human' in name else 'Dog'
-    print(f"{name:<25} {cohort_type:<8} {ref_mags:>10} {len(shared):>10} {unique_shanghai:>16} {unique_shanghai/total_shanghai*100:>11.1f}% {mean_ani:>10.2f}%")
+header = f"{'Cohort':<30} {'Quality':<25} {'Ref MAGs (total)':>18} {'Ref MAGs matched':>18} {'% Ref covered':>15} {'Mean ANI (%)':>13}"
+print(header)
+print("-" * len(header))
 
-print("-" * 95)
-print(f"\nPercentage = Shanghai MAGs with counterpart at >=95% ANI out of {total_shanghai} total")
+for cohort in cohorts:
+    for quality, label in [('HQ', 'High Quality (HQ)'), ('MQ', 'Medium Quality (MQ)')]:
+
+        list_file = f'{QUAL_DIR}/{cohort}_{quality}_list.txt'
+        ref_mags  = sum(1 for _ in open(list_file))
+
+        df     = pd.read_csv(f'{SKANI_DIR}/{cohort}_{quality}_ani.tsv', sep='\t')
+        shared = df[df['ANI'] >= 95].copy()
+        shared['genome_id'] = shared['Ref_file'].apply(lambda x: os.path.basename(x).replace('.fa.gz', ''))
+
+        ref_matched = shared['genome_id'].nunique()
+        mean_ani    = shared['ANI'].mean()
+
+        print(f"{cohort:<30} {label:<25} {ref_mags:>18} {ref_matched:>18} {ref_matched/ref_mags*100:>14.1f}% {mean_ani:>13.2f}")
+
+print("-" * len(header))
