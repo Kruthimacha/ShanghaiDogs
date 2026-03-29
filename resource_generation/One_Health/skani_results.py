@@ -1,38 +1,54 @@
 import pandas as pd
-import glob
+import os
 
-#data
+# Base 
+BASE_DIR = "/work/microbiome/shanghai_dogs"
 
-mimag = pd.read_csv('/work/microbiome/shanghai_dogs/data/ShanghaiDogsTables/SHD_bins_MIMAG_report.csv')
+# Define paths
+mimag_path = os.path.join(BASE_DIR, "data/ShanghaiDogsTables/SHD_bins_MIMAG_report.csv")
+skani_path   = os.path.join(BASE_DIR, "resource_generation/MAGs_Onehealth/SHD_Species_Rep_vs_Human_ani.tsv")
+mag_dir    = os.path.join(BASE_DIR, "data/ShanghaiDogsMAGs")
+
+# Load data
+mimag = pd.read_csv(mimag_path)
+
+# Get species representatives
 reps = mimag[mimag['Representative'] == 'Yes'].copy()
-reps['path'] = '/work/microbiome/shanghai_dogs/data/ShanghaiDogsMAGs/' + reps['Bin ID']
-reps['path'].to_csv('/work/microbiome/users/kruthi/MAGs_Onehealth/SHD_Species_Rep_MAGs_list.txt',
-                    index=False, header=False)
+reps['full_path'] = reps['Bin ID'].apply(lambda x: os.path.join(mag_dir, x))
 
-total_species_reps = sum(1 for _ in open('/work/microbiome/users/kruthi/MAGs_Onehealth/SHD_Species_Rep_MAGs_list.txt'))
-total_human = len(glob.glob('/work/microbiome/users/kruthi/MAGs_Onehealth/GMR_REP_6664MAGs/GMR_REP/*.fasta'))
+# Load SKANI results
+df = pd.read_csv(skani_path, sep='\t')
+shared = df[df['ANI'] >= 95]
 
-df = pd.read_csv('/work/microbiome/users/kruthi/MAGs_Onehealth/SHD_Species_Rep_vs_Human_ani.tsv', sep='\t')
-shared = df[df['ANI'] >= 95].copy()
-
+# Identify dog-specific MAGs
 matched_files = shared['Query_file'].unique()
-reps['full_path'] = '/work/microbiome/shanghai_dogs/data/ShanghaiDogsMAGs/' + reps['Bin ID']
 dog_specific = reps[~reps['full_path'].isin(matched_files)].copy()
 
+# Extract taxonomy
 dog_specific['species'] = dog_specific['Classification'].str.extract(r's__(.+)$')
 dog_specific['genus']   = dog_specific['Classification'].str.extract(r'g__([^;]+)')
 
-named   = dog_specific[dog_specific['species'].notna()][['Bin ID', 'species', 'genus', 'Quality']]
-unnamed = dog_specific[dog_specific['species'].isna()][['Bin ID', 'genus', 'Quality']]
-unnamed = unnamed.assign(species='Novel unnamed species')
+#missing species
+dog_specific['species'] = dog_specific['species'].fillna('Novel unnamed species')
 
-# Save to Excel
+# Final table
+final = dog_specific[['Bin ID', 'species', 'genus', 'Quality']].copy()
+final = final.reset_index(drop=True)
+final.index = final.index + 1
 
-out = '/work/microbiome/users/kruthi/MAGs_Onehealth/Dog_specific_species.xlsx'
+# Display 
+pd.set_option('display.max_rows', None)
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', None)
 
-with pd.ExcelWriter(out, engine='openpyxl') as writer:
-    named.to_excel(writer, sheet_name='Dog_specific_species', index=False, startrow=1)
-    unnamed.to_excel(writer, sheet_name='Dog_specific_species', index=False,
-                     startrow=len(named) + 4)
+# Print summary
+print("\nSummary")
+print(f"Total dog-specific MAGs: {len(final)}")
+print(f"Named species: {(final['species'] != 'Novel unnamed species').sum()}")
+print(f"Novel unnamed species: {(final['species'] == 'Novel unnamed species').sum()}")
+
+# Print table
+print("\nDog-specific species table:\n")
+print(final)
 
 print(f"Saved: {out}")
