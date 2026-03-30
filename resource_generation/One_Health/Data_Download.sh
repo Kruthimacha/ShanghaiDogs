@@ -44,3 +44,23 @@ find "$SHD_DIR" -name "*.fna*" > "$OUT"
 
 wc -l "$OUT"
 head "$OUT"
+
+#step 5
+#regenerating the lists 
+cd /work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists
+
+rm *_MAGs_list.txt
+
+cd ..
+
+mkdir -p Skani_lists
+
+for cohort in */; do
+  name=$(basename "$cohort")
+
+  if [[ "$name" == "Skani_lists" ]]; then
+    continue
+  fi
+
+  find "$cohort" -name "*.fa*" > "Skani_lists/${name}_MAGs_list.txt"
+done
