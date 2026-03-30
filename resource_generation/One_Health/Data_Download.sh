@@ -34,6 +34,12 @@ OUT="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_
 
 mkdir -p "$(dirname "$OUT")"
 
+#step 4
+#gunzip the external cohorts data
+
+cd /work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts
+find . -name "*.fa.gz" -exec gunzip {} \;
+
 find "$SHD_DIR" -name "*.fna*" > "$OUT"
 
 wc -l "$OUT"
