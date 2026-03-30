@@ -24,3 +24,17 @@ for cohort in */; do
   echo "Processing $name"
   find "$cohort" -name "*.fa*" > "Skani_lists/${name}_MAGs_list.txt"
 done
+
+#STEP 3
+#LIST FOR THE SHD DATA
+#!/bin/bash
+
+SHD_DIR="/work/microbiome/shanghai_dogs/data/ShanghaiDogsMAGs"
+OUT="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists/SHD_ALL_MAGs_list.txt"
+
+mkdir -p "$(dirname "$OUT")"
+
+find "$SHD_DIR" -name "*.fna*" > "$OUT"
+
+wc -l "$OUT"
+head "$OUT"
