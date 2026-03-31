@@ -29,10 +29,19 @@ done
 #LIST FOR THE SHD DATA
 #!/bin/bash
 
-SHD_DIR="/work/microbiome/shanghai_dogs/data/ShanghaiDogsMAGs"
-OUT="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists/SHD_ALL_MAGs_list.txt"
+MIMAG="/work/microbiome/shanghai_dogs/data/ShanghaiDogsTables/SHD_bins_MIMAG_report.csv"
+MAG_DIR="/work/microbiome/shanghai_dogs/data/ShanghaiDogsMAGs"
+OUT="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists/SHD_All_MAGs_list.txt"
 
 mkdir -p "$(dirname "$OUT")"
+
+awk -F',' 'NR>1 {print "'$MAG_DIR'/" $1}' "$MIMAG" > "$OUT"
+
+echo "Total MAGs:"
+wc -l "$OUT"
+
+echo "Preview:"
+head "$OUT"
 
 #step 4
 #gunzip the external cohorts data
