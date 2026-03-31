@@ -8,21 +8,20 @@ spire --study download mags Liu_2021_Canidae -o Liu_2021_Canidae/
 spire --study download mags Xu_2019_dogs -o Xu_2019_dogs/
 spire --study download mags Worsley-Tonks_2020_dog -o Worsley-Tonks_2020_dog/
 
-#Step 2 Create Skani Lists
-cd /work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts
+#Step 2 Create Skani Lists for external cohorts
+BASE="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts"
+LISTS="$BASE/Skani_lists"
 
-mkdir -p Skani_lists
+for f in "$LISTS"/*_MAGs_list.txt; do
+    name=$(basename "$f")
+    out="$LISTS/abs_$name"
 
-for cohort in */; do
-  name=$(basename "$cohort")
+    echo "Converting $name → abs_$name"
 
-  # skip non-cohort folders
-  if [[ "$name" == "Skani_lists" || "$name" == "logs" ]]; then
-    continue
-  fi
-
-  echo "Processing $name"
-  find "$cohort" -name "*.fa*" > "Skani_lists/${name}_MAGs_list.txt"
+    awk -v base="$BASE" '{
+        if ($0 ~ /^\//) print $0;
+        else print base "/" $0
+    }' "$f" > "$out"
 done
 
 #STEP 3
@@ -55,21 +54,42 @@ wc -l "$OUT"
 head "$OUT"
 
 #step 5
-#regenerating the lists 
-cd /work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists
+run skani
 
-rm *_MAGs_list.txt
+#!/usr/bin/env bash
 
-cd ..
+BASE="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists"
+QUERY="$BASE/SHD_All_MAGs_list.txt"
 
-mkdir -p Skani_lists
+RESULTS="$BASE/Skani_results"
+LOGS="$RESULTS/Logs"
+THREADS=40
 
-for cohort in */; do
-  name=$(basename "$cohort")
+mkdir -p "$RESULTS" "$LOGS"
 
-  if [[ "$name" == "Skani_lists" ]]; then
-    continue
-  fi
+for REF in "$BASE"/abs_*_MAGs_list.txt; do
+    REF_NAME=$(basename "$REF")
 
-  find "$cohort" -name "*.fa*" > "Skani_lists/${name}_MAGs_list.txt"
+    COHORT="${REF_NAME#abs_}"
+    COHORT="${COHORT%_MAGs_list.txt}"
+
+    OUT="$RESULTS/${COHORT}_vs_SHD_ani.tsv"
+    LOG="$LOGS/${COHORT}.log"
+
+    echo "Running skani for: $COHORT"
+
+    skani dist \
+        --ql "$QUERY" \
+        --rl "$REF" \
+        -t "$THREADS" \
+        -o "$OUT" \
+        > "$LOG" 2>&1
+
+    if [ $? -eq 0 ]; then
+        echo "Finished: $COHORT"
+    else
+        echo "Failed: $COHORT (see $LOG)"
+    fi
 done
+
+echo "All skani jobs completed."
