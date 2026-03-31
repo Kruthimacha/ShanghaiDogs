@@ -7,21 +7,14 @@ METADATA = BASE / "Skani_lists" / "spire_v1_genome_metadata.tsv"
 QUALITY_DIR = BASE / "Skani_lists" / "Quality_MAGs"
 SKANI_DIR = QUALITY_DIR / "Skani_Quality_Results"
 
-# ---------------------------
-# Print filtering criteria
-# ---------------------------
 print("\nQuality filtering criteria:")
 print("HQ: completeness ≥ 90 AND contamination < 5")
 print("MQ: completeness ≥ 50 AND contamination < 10\n")
 
-# ---------------------------
 # Load metadata
-# ---------------------------
 meta = pd.read_csv(METADATA, sep="\t", low_memory=False)
 
-# ---------------------------
 # Assign quality
-# ---------------------------
 def assign_quality(row):
     comp = float(row["completeness"])
     cont = float(row["contamination"])
@@ -38,9 +31,7 @@ meta["quality"] = meta.apply(assign_quality, axis=1)
 hq = meta[meta["quality"] == "HQ"]
 mq = meta[meta["quality"] == "MQ"]
 
-# ---------------------------
 # Cohorts
-# ---------------------------
 cohort_dirs = {
     "Coelho_2018_dog": BASE / "Coelho_2018_dog",
     "Wang_2019_dogs": BASE / "Wang_2019_dogs",
@@ -55,9 +46,7 @@ valid_suffixes = [".fa", ".fna", ".fasta", ".fa.gz", ".fna.gz", ".fasta.gz"]
 
 created_files = []
 
-# ---------------------------
 # Create HQ/MQ lists
-# ---------------------------
 for cohort_name, cohort_root in cohort_dirs.items():
     mags_dir = cohort_root / "mags"
 
@@ -92,31 +81,24 @@ for cohort_name, cohort_root in cohort_dirs.items():
 
     created_files.extend([hq_file, mq_file])
 
-# ---------------------------
-# Print created files
-# ---------------------------
 print("Generated HQ/MQ list files:")
 for f in created_files:
     print(f" - {f}")
 
-# ---------------------------
-# Summary from skani
-# ---------------------------
-def clean_genome_id(path_str):
-    name = Path(str(path_str)).name
-    return re.sub(r"\.(fa|fna|fasta)(\.gz)?$", "", name)
+# Read skani output
+def clean_id(p):
+    return re.sub(r"\.(fa|fna|fasta)(\.gz)?$", "", Path(p).name)
 
-def read_skani_tsv(path):
+def read_skani(path):
     df = pd.read_csv(path, sep="\t", header=None)
     df = df.iloc[:, :7]
-    df.columns = [
-        "Ref_file","Query_file","ANI",
-        "Align_fraction_ref","Align_fraction_query",
-        "Ref_name","Query_name"
-    ]
+    df.columns = ["Ref_file", "Query_file", "ANI", "AF_ref", "AF_query", "Ref_name", "Query_name"]
+    df["ANI"] = pd.to_numeric(df["ANI"], errors="coerce")
+    df["Ref_id"] = df["Ref_file"].apply(clean_id)
     return df
 
-rows = []
+rows_filtered = []
+rows_unfiltered = []
 
 for cohort in cohort_dirs.keys():
     for quality in ["HQ", "MQ"]:
@@ -126,28 +108,37 @@ for cohort in cohort_dirs.keys():
         if not ani_file.exists():
             continue
 
-        ref_mags = sum(1 for _ in open(list_file))
+        total = sum(1 for _ in open(list_file) if _.strip())
+        df = read_skani(ani_file)
 
-        df = read_skani_tsv(ani_file)
-        df["ANI"] = pd.to_numeric(df["ANI"], errors="coerce")
+        # FILTERED (ANI ≥ 95)
+        df95 = df[df["ANI"] >= 95]
+        matched95 = df95["Ref_id"].nunique()
 
-        shared = df[df["ANI"] >= 95].copy()
-        shared["Ref_genome_id"] = shared["Ref_file"].apply(clean_genome_id)
-
-        ref_matched = shared["Ref_genome_id"].nunique()
-        pct_covered = (ref_matched / ref_mags * 100) if ref_mags else 0
-        mean_ani = shared["ANI"].mean() if not shared.empty else None
-
-        rows.append({
+        rows_filtered.append({
             "Cohort": cohort,
             "Quality": quality,
-            "Ext MAGs (total)": ref_mags,
-            "Ext MAGs matched": ref_matched,
-            "% Ext covered": round(pct_covered, 1),
-            "Mean ANI (%)": round(mean_ani, 2) if mean_ani else None,
+            "Ext MAGs (total)": total,
+            "Ext MAGs matched": matched95,
+            "% Ext covered": round(matched95 / total * 100, 1) if total else 0,
+            "Mean ANI (%)": round(df95["ANI"].mean(), 2) if not df95.empty else None,
         })
 
-summary = pd.DataFrame(rows)
+        # UNFILTERED (ALL ANI)
+        matched_all = df["Ref_id"].nunique()
 
-print("\nFinal coverage table:\n")
-print(summary.to_string(index=False))
+        rows_unfiltered.append({
+            "Cohort": cohort,
+            "Quality": quality,
+            "Ext MAGs (total)": total,
+            "Ext MAGs matched": matched_all,
+            "% Ext covered": round(matched_all / total * 100, 1) if total else 0,
+            "Mean ANI (%)": round(df["ANI"].mean(), 2),
+        })
+
+# Print tables
+print("\n===== TABLE A: ANI ≥ 95 =====\n")
+print(pd.DataFrame(rows_filtered).to_string(index=False))
+
+print("\n===== TABLE B: NO FILTER (ALL ANI) =====\n")
+print(pd.DataFrame(rows_unfiltered).to_string(index=False))
