@@ -84,3 +84,16 @@ for REF in "$LISTS"/*_MAGs_list.txt; do
 done
 
 echo "All skani jobs completed."
+
+#step 6
+#download spire genome metadata file
+cd /work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists
+wget -O spire_v1_genome_metadata.tsv.gz \
+https://swifter.embl.de/~fullam/spire/metadata/spire_v1_genome_metadata.tsv.gz
+
+# Step 3: Unzip
+gunzip -f spire_v1_genome_metadata.tsv.gz
+
+# Step 4: Verify
+ls -lh spire_v1_genome_metadata.tsv
+head spire_v1_genome_metadata.tsv
