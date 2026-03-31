@@ -91,9 +91,44 @@ cd /work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_co
 wget -O spire_v1_genome_metadata.tsv.gz \
 https://swifter.embl.de/~fullam/spire/metadata/spire_v1_genome_metadata.tsv.gz
 
-# Step 3: Unzip
+# Unzip
 gunzip -f spire_v1_genome_metadata.tsv.gz
 
-# Step 4: Verify
+#  Verify
 ls -lh spire_v1_genome_metadata.tsv
 head spire_v1_genome_metadata.tsv
+
+#Step 7
+#skani results for quality mags
+BASE="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists"
+QUAL="$BASE/Quality_MAGs"
+QUERY="$BASE/SHD_All_MAGs_list.txt"
+OUTDIR="$QUAL/Skani_Quality_Results"
+THREADS=40
+
+mkdir -p "$OUTDIR"
+
+for cohort in Coelho_2018_dog Wang_2019_dogs Yarlagadda_2022_global_dog Allaway_2020_dogs Liu_2021_Canidae Xu_2019_dogs Worsley-Tonks_2020_dog; do
+  for quality in HQ MQ; do
+
+    REF="$QUAL/${cohort}_${quality}_list.txt"
+    OUT="$OUTDIR/${cohort}_${quality}_ani.tsv"
+
+    if [ ! -s "$REF" ]; then
+      echo "Skipping $REF"
+      continue
+    fi
+
+    echo "Running skani: $cohort $quality"
+
+    skani dist \
+      --ql "$QUERY" \
+      --rl "$REF" \
+      -t $THREADS \
+      -o "$OUT"
+
+  done
+done
+
+echo "All skani runs completed"
+
