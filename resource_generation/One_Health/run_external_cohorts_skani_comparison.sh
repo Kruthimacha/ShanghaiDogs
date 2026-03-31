@@ -10,18 +10,10 @@ spire --study download mags Worsley-Tonks_2020_dog -o Worsley-Tonks_2020_dog/
 
 #Step 2 Create Skani Lists for external cohorts
 BASE="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts"
-LISTS="$BASE/Skani_lists"
+cd "$BASE/Skani_lists"
 
-for f in "$LISTS"/*_MAGs_list.txt; do
-    name=$(basename "$f")
-    out="$LISTS/abs_$name"
-
-    echo "Converting $name → abs_$name"
-
-    awk -v base="$BASE" '{
-        if ($0 ~ /^\//) print $0;
-        else print base "/" $0
-    }' "$f" > "$out"
+for cohort in Allaway_2020_dogs Coelho_2018_dog Liu_2021_Canidae Wang_2019_dogs Worsley-Tonks_2020_dog Xu_2019_dogs Yarlagadda_2022_global_dog; do
+    find "$BASE/$cohort" -type f -name "*.fa" > "${cohort}_MAGs_list.txt"
 done
 
 #STEP 3
@@ -54,7 +46,7 @@ wc -l "$OUT"
 head "$OUT"
 
 #step 5
-run skani
+#run skani
 
 #!/usr/bin/env bash
 
@@ -67,12 +59,11 @@ THREADS=40
 
 mkdir -p "$RESULTS" "$LOGS"
 
-for REF in "$BASE"/abs_*_MAGs_list.txt; do
+for REF in "$LISTS"/*_MAGs_list.txt; do
     REF_NAME=$(basename "$REF")
+    [ "$REF_NAME" = "SHD_All_MAGs_list.txt" ] && continue
 
-    COHORT="${REF_NAME#abs_}"
-    COHORT="${COHORT%_MAGs_list.txt}"
-
+    COHORT="${REF_NAME%_MAGs_list.txt}"
     OUT="$RESULTS/${COHORT}_vs_SHD_ani.tsv"
     LOG="$LOGS/${COHORT}.log"
 
