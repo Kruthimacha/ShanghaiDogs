@@ -20,7 +20,7 @@ def clean_id(path_str):
 
 def sheet_name_from_file(path):
     name = path.stem.replace("_vs_shanghai_fastani", "")
-    return name[:31]  # Excel sheet name limit
+    return name[:31]  
 
 def read_fastani_tsv(path):
     df = pd.read_csv(path, sep="\t", header=None)
@@ -33,6 +33,42 @@ summary_rows = []
 with pd.ExcelWriter(out_xlsx, engine="openpyxl") as writer:
     for tsv in sorted(fastani_dir.glob("*_vs_shanghai_fastani.tsv")):
         df = read_fastani_tsv(tsv)
+
+        df["spire_id"] = df["spire_file"].apply(clean_id)
+        df["shd_id"] = df["shd_file"].apply(clean_id)
+
+        # Merge taxonomy for the SPIRE MAG
+        df = df.merge(
+            meta,
+            left_on="spire_id",
+            right_on="genome_id",
+            how="left"
+        ).drop(columns=["genome_id"])
+
+        # Put taxonomy columns 
+        cols = [
+            "spire_id", "spire_file",
+            "shd_id", "shd_file",
+            "ANI", "fragments", "total_fragments",
+            "family", "genus", "species"
+        ]
+        df = df[cols]
+
+        sheet = sheet_name_from_file(tsv)
+        df.to_excel(writer, sheet_name=sheet, index=False)
+
+        summary_rows.append({
+            "sheet": sheet,
+            "rows": len(df),
+            "unique_spire_ids": df["spire_id"].nunique(),
+            "unique_shd_ids": df["shd_id"].nunique()
+        })
+
+    # summary sheet
+    summary = pd.DataFrame(summary_rows)
+    summary.to_excel(writer, sheet_name="Summary", index=False)
+
+print(f"Saved workbook to: {out_xlsx}")
 
         df["spire_id"] = df["spire_file"].apply(clean_id)
         df["shd_id"] = df["shd_file"].apply(clean_id)
