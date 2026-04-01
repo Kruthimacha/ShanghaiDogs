@@ -1,22 +1,33 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-# Reference 
 REF="/work/microbiome/users/kruthi/MAGs_Onehealth/dog_mags_list.txt"
+QUERY_DIR="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/FastANI/Unmatched_MAGs"
+OUTDIR="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/FastANI/FastANI_results"
+LOGDIR="$OUTDIR/logs"
 
-# unmatched path files 
-declare -A files
-files=( ["Coelho_HQ"]="Coelho_unmatched_vs_shanghai_fastani.tsv"
-        ["Coelho_MQ"]="Coelho_MQ_unmatched_vs_shanghai_fastani.tsv"
-        ["Yarlagadda_HQ"]="Yarlagadda_HQ_unmatched_vs_shanghai_fastani.tsv"
-        ["Yarlagadda_MQ"]="Yarlagadda_MQ_unmatched_vs_shanghai_fastani.tsv" )
+mkdir -p "$OUTDIR" "$LOGDIR"
 
-# run FastANI
-for cohort in "${!files[@]}"; do
-    echo "Running FastANI for $cohort ..."
+# Use fewer threads per FastANI job to avoid memory kills.
+THREADS=8
+
+for QUERY in "$QUERY_DIR"/*_unmatched_paths.txt; do
+    [ -e "$QUERY" ] || continue
+
+    base="$(basename "$QUERY" _unmatched_paths.txt)"
+    OUT="$OUTDIR/${base}_vs_shanghai_fastani.tsv"
+    LOG="$LOGDIR/${base}.log"
+
+    echo "Running FastANI for $base with $THREADS threads"
+
     fastANI \
-        --ql "$cohort"_unmatched_paths.txt \
+        --ql "$QUERY" \
         --rl "$REF" \
-        -o "${files[$cohort]}"
+        -t "$THREADS" \
+        -o "$OUT" \
+        > "$LOG" 2>&1
+
+    echo "Done: $base"
 done
 
-echo "FastANI runs completed!"
+echo "FastANI runs completed."
