@@ -8,44 +8,39 @@ spire --study download mags Liu_2021_Canidae -o Liu_2021_Canidae/
 spire --study download mags Xu_2019_dogs -o Xu_2019_dogs/
 spire --study download mags Worsley-Tonks_2020_dog -o Worsley-Tonks_2020_dog/
 
-#Step 2 Create Skani Lists for external cohorts
-BASE="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts"
-cd "$BASE/Skani_lists"
-
-for cohort in Allaway_2020_dogs Coelho_2018_dog Liu_2021_Canidae Wang_2019_dogs Worsley-Tonks_2020_dog Xu_2019_dogs Yarlagadda_2022_global_dog; do
-    find "$BASE/$cohort" -type f -name "*.fa" > "${cohort}_MAGs_list.txt"
-done
-
-#STEP 3
-#LIST FOR THE SHD DATA
+#STEP 2 gunzip and create the lists for SkaANI input
 #!/bin/bash
+set -euo pipefail
 
+BASE="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts"
+LIST_DIR="$BASE/Skani_lists"
 MIMAG="/work/microbiome/shanghai_dogs/data/ShanghaiDogsTables/SHD_bins_MIMAG_report.csv"
 MAG_DIR="/work/microbiome/shanghai_dogs/data/ShanghaiDogsMAGs"
-OUT="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists/SHD_All_MAGs_list.txt"
 
-mkdir -p "$(dirname "$OUT")"
+mkdir -p "$LIST_DIR"
 
-awk -F',' 'NR>1 {print "'$MAG_DIR'/" $1}' "$MIMAG" > "$OUT"
+echo "Unzipping external cohort genomes..."
+find "$BASE" -name "*.fa.gz" -exec gunzip {} \;
 
-echo "Total MAGs:"
-wc -l "$OUT"
+create_list () {
+    local input_dir="$1"
+    local output_file="$2"
+    find "$input_dir" -type f -name "*.fa" > "$output_file"
+    echo "$(basename "$output_file"): $(wc -l < "$output_file") files"
+}
 
-echo "Preview:"
-head "$OUT"
+echo "Creating Skani lists for external cohorts..."
+for cohort in Allaway_2020_dogs Coelho_2018_dog Liu_2021_Canidae Wang_2019_dogs Worsley-Tonks_2020_dog Xu_2019_dogs Yarlagadda_2022_global_dog; do
+    create_list "$BASE/$cohort" "$LIST_DIR/${cohort}_MAGs_list.txt"
+done
 
-#step 4
-#gunzip the external cohorts data
+echo "Creating Skani list for SHD MAGs..."
+awk -F',' -v dir="$MAG_DIR" 'NR>1 {print dir "/" $1}' "$MIMAG" > "$LIST_DIR/SHD_All_MAGs_list.txt"
 
-cd /work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts
-find . -name "*.fa.gz" -exec gunzip {} \;
+echo "SHD_All_MAGs_list.txt: $(wc -l < "$LIST_DIR/SHD_All_MAGs_list.txt") files"
+head "$LIST_DIR/SHD_All_MAGs_list.txt"
 
-find "$SHD_DIR" -name "*.fna*" > "$OUT"
-
-wc -l "$OUT"
-head "$OUT"
-
-#step 5
+#step 3
 #run skani
 
 #!/usr/bin/env bash
@@ -85,7 +80,7 @@ done
 
 echo "All skani jobs completed."
 
-#step 6
+#step 4
 #download spire genome metadata file
 cd /work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists
 wget -O spire_v1_genome_metadata.tsv.gz \
@@ -98,7 +93,7 @@ gunzip -f spire_v1_genome_metadata.tsv.gz
 ls -lh spire_v1_genome_metadata.tsv
 head spire_v1_genome_metadata.tsv
 
-#Step 7
+#Step 5
 #skani results for quality mags
 BASE="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists"
 QUAL="$BASE/Quality_MAGs"
