@@ -1,3 +1,4 @@
+##Scrpit to run FASTANI on unmatched MAGs
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -8,7 +9,6 @@ LOGDIR="$OUTDIR/logs"
 
 mkdir -p "$OUTDIR" "$LOGDIR"
 
-# Use fewer threads per FastANI job to avoid memory kills.
 THREADS=8
 
 for QUERY in "$QUERY_DIR"/*_unmatched_paths.txt; do
