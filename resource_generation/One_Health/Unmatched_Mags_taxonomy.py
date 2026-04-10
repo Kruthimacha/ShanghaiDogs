@@ -2,25 +2,31 @@ from pathlib import Path
 import re
 import pandas as pd
 
-fastani_dir = Path("/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/FastANI/FastANI_results")
-meta_file = Path("/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists/spire_v1_genome_metadata.tsv")
-out_xlsx = fastani_dir / "FastANI_by_cohort_taxonomy.xlsx"
+BASE = Path("/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts")
+QUALITY_DIR = BASE / "Skani_lists" / "Quality_MAGs"
+SKANI_DIR = QUALITY_DIR / "Skani_Quality_Results"
+FASTANI_DIR = BASE / "FastANI" / "FastANI_results"
+META_FILE = BASE / "Skani_lists" / "spire_v1_genome_metadata.tsv"
+OUT_XLSX = FASTANI_DIR / "FastANI_by_cohort_taxonomy.xlsx"
 
-# Load taxonomy metadata
-meta = pd.read_csv(
-    meta_file,
-    sep="\t",
-    low_memory=False,
-    usecols=["genome_id", "family", "genus", "species"]
-)
+cohorts = [
+    "Coelho_2018_dog",
+    "Wang_2019_dogs",
+    "Yarlagadda_2022_global_dog",
+    "Allaway_2020_dogs",
+    "Liu_2021_Canidae",
+    "Xu_2019_dogs",
+    "Worsley-Tonks_2020_dog",
+]
+
+meta = pd.read_csv(META_FILE, sep="\t", low_memory=False)
 
 def clean_id(path_str):
     name = Path(str(path_str)).name
     return re.sub(r"\.(fa|fna|fasta)(\.gz)?$", "", name)
 
 def sheet_name_from_file(path):
-    name = path.stem.replace("_vs_shanghai_fastani", "")
-    return name[:31]  
+    return path.stem.replace("_vs_shanghai_fastani", "")[:31]
 
 def read_fastani_tsv(path):
     df = pd.read_csv(path, sep="\t", header=None)
@@ -28,80 +34,100 @@ def read_fastani_tsv(path):
     df.columns = ["spire_file", "shd_file", "ANI", "fragments", "total_fragments"]
     return df
 
-summary_rows = []
+def read_skani_tsv(path):
+    df = pd.read_csv(path, sep="\t", header=None, usecols=range(7))
+    df.columns = ["Ref_file", "Query_file", "ANI", "AF_ref", "AF_query", "Ref_name", "Query_name"]
+    df["ANI"] = pd.to_numeric(df["ANI"], errors="coerce")
+    return df
 
-with pd.ExcelWriter(out_xlsx, engine="openpyxl") as writer:
-    for tsv in sorted(fastani_dir.glob("*_vs_shanghai_fastani.tsv")):
+def get_taxonomy_columns(df):
+    preferred = [
+        "superkingdom", "domain",
+        "phylum", "class", "order", "family", "genus", "species",
+        "strain", "subspecies", "species_name"
+    ]
+    return [c for c in preferred if c in df.columns]
+
+taxonomy_cols = get_taxonomy_columns(meta)
+base_cols = ["genome_id"] + taxonomy_cols
+
+unmatched_rows = []
+
+with pd.ExcelWriter(OUT_XLSX, engine="openpyxl") as writer:
+    # 1) FastANI sheets
+    for tsv in sorted(FASTANI_DIR.glob("*_vs_shanghai_fastani.tsv")):
         df = read_fastani_tsv(tsv)
 
         df["spire_id"] = df["spire_file"].apply(clean_id)
         df["shd_id"] = df["shd_file"].apply(clean_id)
 
-        # Merge taxonomy for the SPIRE MAG
         df = df.merge(
-            meta,
+            meta[base_cols],
             left_on="spire_id",
             right_on="genome_id",
             how="left"
         ).drop(columns=["genome_id"])
 
-        # Put taxonomy columns 
         cols = [
             "spire_id", "spire_file",
             "shd_id", "shd_file",
-            "ANI", "fragments", "total_fragments",
-            "family", "genus", "species"
-        ]
-        df = df[cols]
+            "ANI", "fragments", "total_fragments"
+        ] + taxonomy_cols
+
+        df = df[[c for c in cols if c in df.columns]]
 
         sheet = sheet_name_from_file(tsv)
         df.to_excel(writer, sheet_name=sheet, index=False)
 
-        summary_rows.append({
-            "sheet": sheet,
-            "rows": len(df),
-            "unique_spire_ids": df["spire_id"].nunique(),
-            "unique_shd_ids": df["shd_id"].nunique()
-        })
+    # 2) Unmatched MAGs (ANI <95)
+    for cohort in cohorts:
+        for quality in ["HQ", "MQ"]:
+            list_file = QUALITY_DIR / f"{cohort}_{quality}_list.txt"
+            ani_file = SKANI_DIR / f"{cohort}_{quality}_ani.tsv"
 
-    # summary sheet
-    summary = pd.DataFrame(summary_rows)
-    summary.to_excel(writer, sheet_name="Summary", index=False)
+            if not list_file.exists() or not ani_file.exists():
+                continue
 
-print(f"Saved workbook to: {out_xlsx}")
+            with open(list_file) as f:
+                all_paths = [line.strip() for line in f if line.strip()]
 
-        df["spire_id"] = df["spire_file"].apply(clean_id)
-        df["shd_id"] = df["shd_file"].apply(clean_id)
+            id_to_path = {}
+            for p in all_paths:
+                gid = clean_id(p)
+                if gid not in id_to_path:
+                    id_to_path[gid] = p
 
-        # Merge taxonomy for the SPIRE MAG
-        df = df.merge(
-            meta,
+            skani_df = read_skani_tsv(ani_file)
+            high_ani = skani_df[skani_df["ANI"] >= 95]
+
+            matched_ids = set(high_ani["Ref_file"].dropna().map(clean_id)) | \
+                          set(high_ani["Query_file"].dropna().map(clean_id))
+
+            unmatched_ids = [gid for gid in id_to_path.keys() if gid not in matched_ids]
+
+            for gid in unmatched_ids:
+                unmatched_rows.append({
+                    "cohort_quality": f"{cohort}_{quality}",
+                    "spire_id": gid,
+                    "spire_file": id_to_path[gid]
+                })
+
+    # 3) Write unmatched sheet
+    if unmatched_rows:
+        unmatched_df = pd.DataFrame(unmatched_rows).drop_duplicates(
+            subset=["cohort_quality", "spire_id"]
+        )
+
+        unmatched_df = unmatched_df.merge(
+            meta[base_cols],
             left_on="spire_id",
             right_on="genome_id",
             how="left"
         ).drop(columns=["genome_id"])
 
-        # Put taxonomy columns near the end
-        cols = [
-            "spire_id", "spire_file",
-            "shd_id", "shd_file",
-            "ANI", "fragments", "total_fragments",
-            "family", "genus", "species"
-        ]
-        df = df[cols]
+        unmatched_cols = ["cohort_quality", "spire_id", "spire_file"] + taxonomy_cols
+        unmatched_df = unmatched_df[[c for c in unmatched_cols if c in unmatched_df.columns]]
 
-        sheet = sheet_name_from_file(tsv)
-        df.to_excel(writer, sheet_name=sheet, index=False)
+        unmatched_df.to_excel(writer, sheet_name="Unmatched_MAGs_95", index=False)
 
-        summary_rows.append({
-            "sheet": sheet,
-            "rows": len(df),
-            "unique_spire_ids": df["spire_id"].nunique(),
-            "unique_shd_ids": df["shd_id"].nunique()
-        })
-
-    # Add a summary sheet
-    summary = pd.DataFrame(summary_rows)
-    summary.to_excel(writer, sheet_name="Summary", index=False)
-
-print(f"Saved workbook to: {out_xlsx}")
+print(f"Saved workbook to: {OUT_XLSX}")
