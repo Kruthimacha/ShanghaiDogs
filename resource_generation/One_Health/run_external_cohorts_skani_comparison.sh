@@ -127,3 +127,34 @@ done
 
 echo "All skani runs completed"
 
+#STEP 6 
+#15MARCH
+
+BASE="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists"
+QUAL="$BASE/Quality_MAGs"
+QUERY="$BASE/SHD_All_MAGs_list.txt"
+OUTDIR="$QUAL/Skani_Quality_Results"
+THREADS=40
+
+for cohort in Coelho_2018_dog Wang_2019_dogs Yarlagadda_2022_global_dog Allaway_2020_dogs Liu_2021_Canidae Xu_2019_dogs Worsley-Tonks_2020_dog; do
+
+    REF="$QUAL/${cohort}_ALL_list.txt"
+    OUT="$OUTDIR/${cohort}_ALL_ani.tsv"
+
+    if [ ! -s "$REF" ]; then
+        echo "Skipping $REF"
+        continue
+    fi
+
+    echo "Running SKANI for ALL: $cohort"
+
+    skani dist \
+        --ql "$QUERY" \
+        --rl "$REF" \
+        -t $THREADS \
+        -o "$OUT"
+
+done
+
+echo "ALL SKANI runs completed"
+
