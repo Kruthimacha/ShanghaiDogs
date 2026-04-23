@@ -40,47 +40,8 @@ awk -F',' -v dir="$MAG_DIR" 'NR>1 {print dir "/" $1}' "$MIMAG" > "$LIST_DIR/SHD_
 echo "SHD_All_MAGs_list.txt: $(wc -l < "$LIST_DIR/SHD_All_MAGs_list.txt") files"
 head "$LIST_DIR/SHD_All_MAGs_list.txt"
 
+
 #step 3
-#run skani
-
-#!/usr/bin/env bash
-
-BASE="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists"
-QUERY="$BASE/SHD_All_MAGs_list.txt"
-
-RESULTS="$BASE/Skani_results"
-LOGS="$RESULTS/Logs"
-THREADS=40
-
-mkdir -p "$RESULTS" "$LOGS"
-
-for REF in "$LISTS"/*_MAGs_list.txt; do
-    REF_NAME=$(basename "$REF")
-    [ "$REF_NAME" = "SHD_All_MAGs_list.txt" ] && continue
-
-    COHORT="${REF_NAME%_MAGs_list.txt}"
-    OUT="$RESULTS/${COHORT}_vs_SHD_ani.tsv"
-    LOG="$LOGS/${COHORT}.log"
-
-    echo "Running skani for: $COHORT"
-
-    skani dist \
-        --ql "$QUERY" \
-        --rl "$REF" \
-        -t "$THREADS" \
-        -o "$OUT" \
-        > "$LOG" 2>&1
-
-    if [ $? -eq 0 ]; then
-        echo "Finished: $COHORT"
-    else
-        echo "Failed: $COHORT (see $LOG)"
-    fi
-done
-
-echo "All skani jobs completed."
-
-#step 4
 #download spire genome metadata file
 cd /work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists
 wget -O spire_v1_genome_metadata.tsv.gz \
@@ -93,21 +54,64 @@ gunzip -f spire_v1_genome_metadata.tsv.gz
 ls -lh spire_v1_genome_metadata.tsv
 head spire_v1_genome_metadata.tsv
 
-#Step 5
-#skani results for quality mags
+
+#STEP 4
+#run skani
+#!/usr/bin/env bash
+set -euo pipefail
+
 BASE="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists"
-QUAL="$BASE/Quality_MAGs"
 QUERY="$BASE/SHD_All_MAGs_list.txt"
-OUTDIR="$QUAL/Skani_Quality_Results"
+
+QUAL="$BASE/Quality_MAGs"
+
+RESULTS="$BASE/Skani_results"
+LOGS="$RESULTS/Logs"
+
 THREADS=40
 
-mkdir -p "$OUTDIR"
+mkdir -p "$RESULTS" "$LOGS" "$QUAL/Skani_Quality_Results"
 
-for cohort in Coelho_2018_dog Wang_2019_dogs Yarlagadda_2022_global_dog Allaway_2020_dogs Liu_2021_Canidae Xu_2019_dogs Worsley-Tonks_2020_dog; do
+COHORTS=(
+  Coelho_2018_dog
+  Wang_2019_dogs
+  Yarlagadda_2022_global_dog
+  Allaway_2020_dogs
+  Liu_2021_Canidae
+  Xu_2019_dogs
+  Worsley-Tonks_2020_dog
+)
+
+echo "===== STEP 3: ALL MAGs vs SHD ====="
+for cohort in "${COHORTS[@]}"; do
+
+    REF="$BASE/${cohort}_MAGs_list.txt"
+    OUT="$RESULTS/${cohort}_vs_SHD_ani.tsv"
+    LOG="$LOGS/${cohort}.log"
+
+    if [ ! -s "$REF" ]; then
+        echo "Skipping $REF"
+        continue
+    fi
+
+    echo "Running skani: $cohort (ALL MAGs)"
+
+    skani dist \
+        --ql "$QUERY" \
+        --rl "$REF" \
+        -t "$THREADS" \
+        -o "$OUT" \
+        > "$LOG" 2>&1
+
+done
+
+
+echo "===== STEP 5: HQ & MQ ====="
+for cohort in "${COHORTS[@]}"; do
   for quality in HQ MQ; do
 
     REF="$QUAL/${cohort}_${quality}_list.txt"
-    OUT="$OUTDIR/${cohort}_${quality}_ani.tsv"
+    OUT="$QUAL/Skani_Quality_Results/${cohort}_${quality}_ani.tsv"
 
     if [ ! -s "$REF" ]; then
       echo "Skipping $REF"
@@ -119,42 +123,32 @@ for cohort in Coelho_2018_dog Wang_2019_dogs Yarlagadda_2022_global_dog Allaway_
     skani dist \
       --ql "$QUERY" \
       --rl "$REF" \
-      -t $THREADS \
+      -t "$THREADS" \
       -o "$OUT"
 
   done
 done
 
-echo "All skani runs completed"
 
-#STEP 6 
-#15MARCH
-
-BASE="/work/microbiome/shanghai_dogs/resource_generation/MAGs_Onehealth/External_cohorts/Skani_lists"
-QUAL="$BASE/Quality_MAGs"
-QUERY="$BASE/SHD_All_MAGs_list.txt"
-OUTDIR="$QUAL/Skani_Quality_Results"
-THREADS=40
-
-for cohort in Coelho_2018_dog Wang_2019_dogs Yarlagadda_2022_global_dog Allaway_2020_dogs Liu_2021_Canidae Xu_2019_dogs Worsley-Tonks_2020_dog; do
+echo "===== STEP 6: ALL (quality-filtered lists) ====="
+for cohort in "${COHORTS[@]}"; do
 
     REF="$QUAL/${cohort}_ALL_list.txt"
-    OUT="$OUTDIR/${cohort}_ALL_ani.tsv"
+    OUT="$QUAL/Skani_Quality_Results/${cohort}_ALL_ani.tsv"
 
     if [ ! -s "$REF" ]; then
         echo "Skipping $REF"
         continue
     fi
 
-    echo "Running SKANI for ALL: $cohort"
+    echo "Running skani: $cohort ALL"
 
     skani dist \
         --ql "$QUERY" \
         --rl "$REF" \
-        -t $THREADS \
+        -t "$THREADS" \
         -o "$OUT"
 
 done
 
-echo "ALL SKANI runs completed"
-
+echo "===== ALL SKANI RUNS COMPLETED ====="
