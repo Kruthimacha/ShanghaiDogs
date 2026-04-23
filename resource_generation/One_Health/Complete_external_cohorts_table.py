@@ -66,8 +66,8 @@ for cohort in cohorts:
             "Mean ANI (%)": round(df["ANI"].mean(), 2) if not df.empty else None,
         })
 
-print("\n===== TABLE A: ANI ≥ 95 =====\n")
+print("\n=TABLE A: ANI ≥ 95 =\n")
 print(pd.DataFrame(rows_filtered).to_string(index=False))
 
-print("\n===== TABLE B: NO FILTER (ALL ANI) =====\n")
+print("\n=TABLE B: NO FILTER (ALL ANI) =\n")
 print(pd.DataFrame(rows_unfiltered).to_string(index=False))
